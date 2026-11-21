@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Version Export</title>
+  <style>
+    :root { color-scheme: dark; --accent: #F7C449; --bg: #151515; --panel: #1e1e21; --line: #2c2c30; --dim: #8a8a90; --ok: #7fd18b; --err: #ff8a80; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: var(--bg); color: #ddd; font: 13px -apple-system, Helvetica, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+    button, input, select { font: inherit; color: inherit; }
+    button { background: #2a2a2e; border: 1px solid #44444a; border-radius: 5px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+    button:hover:not(:disabled) { border-color: #66666c; }
+    button:disabled { opacity: .4; cursor: default; }
+    button.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+    header { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; background: #202023; border-bottom: 1px solid var(--line); }
+    header h1 { font-size: 14px; margin: 0; font-weight: 600; }
+    .dim { color: var(--dim); font-size: 12px; }
+    #session { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #banner { background: #4a2b14; border-bottom: 1px solid #7a4a1f; padding: 8px 14px; display: flex; gap: 10px; align-items: center; }
+    #banner span { flex: 1; }
+    .settings { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+    .settings > label { color: var(--dim); }
+    #folder { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+    .btns { display: flex; gap: 6px; }
+    .modes { grid-column: 2 / 4; display: flex; flex-direction: column; gap: 4px; }
+    .modes label { display: flex; gap: 6px; align-items: center; }
+    .bar { display: flex; gap: 8px; align-items: center; padding: 8px 14px; }
+    .bar .grow { flex: 1; }
+    main { flex: 1; overflow: auto; padding: 0 14px 10px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--dim); padding: 6px 4px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); }
+    td { padding: 5px 4px; border-bottom: 1px solid #222226; vertical-align: top; }
+    td.num { font-family: Menlo, monospace; font-size: 12px; text-align: right; }
+    .chip { display: inline-block; padding: 1px 6px; margin: 1px 3px 1px 0; border-radius: 4px; background: #2a2a2e; font-size: 12px; }
+    .chip.ok { background: #1f3a24; color: var(--ok); }
+    .chip.err { background: #3d1f1f; color: var(--err); }
+    .chip.now { outline: 1px solid var(--accent); }
+    tr.skip td { color: var(--dim); }
+    tr.off td:not(.pick) { color: var(--dim); opacity: .55; }
+    th.pick, td.pick { width: 1%; white-space: nowrap; }
+    td.pick { text-align: center; }
+    button.mini { padding: 0 6px; font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+    #empty { color: var(--dim); padding: 18px 2px; line-height: 1.5; }
+    progress { width: 120px; height: 6px; accent-color: var(--accent); }
+    footer { border-top: 1px solid var(--line); padding: 8px 14px; }
+    #log { font: 11px Menlo, monospace; color: #aaa; max-height: 100px; overflow: auto; white-space: pre-wrap; }
+    #log .err { color: var(--err); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Version Export <span id="ver" class="dim"></span></h1>
+    <span id="session" class="dim">connecting…</span>
+  </header>
+  <div id="banner" hidden><span>An export was interrupted before your tracks were put back on their versions.</span><button id="restoreBtn" class="primary">Restore versions</button><button id="forgetBtn">Ignore</button></div>
+  <div class="settings">
+    <label>Folder</label>
+    <span id="folder">–</span>
+    <span class="btns"><button id="choose">Choose…</button><button id="reveal">Show</button></span>
+    <label>Names</label>
+    <div class="modes">
+      <label><input type="radio" name="mode" value="names"> Version in the file name <span class="dim">Bass - V3 - groove take.wav</span></label>
+      <label><input type="radio" name="mode" value="folders"> A folder per version <span class="dim">V3/Bass - groove take.wav</span></label>
+    </div>
+    <span></span>
+    <span class="dim" style="grid-column: 2 / 4">Raw files, before plugins and fader, all from bar 1 to the end of the last clip so they line up in any DAW. Tracks with one version are exported once. Files with the same name are replaced.</span>
+  </div>
+  <div class="bar">
+    <button id="refresh">Refresh</button>
+    <span class="grow dim" id="summary"></span>
+    <progress id="prog" max="1" value="0" hidden></progress>
+    <button id="stop" disabled>Stop</button>
+    <button id="export" class="primary" disabled>Export</button>
+  </div>
+  <main>
+    <table id="table" hidden>
+      <thead><tr><th class="pick"><button id="all" class="mini">All</button> <button id="none" class="mini">None</button></th><th>Track</th><th>Versions</th><th style="text-align:right">Files</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty" hidden></div>
+  </main>
+  <footer><div id="log"></div></footer>
+  <script src="vendor/luna.global.js"></script>
+  <script src="logic.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

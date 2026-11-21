@@ -1,0 +1,18 @@
+{
+    "package_name": "Version Export",
+    "id": "com.audioplanet.version_export",
+    "title": "Version Export",
+    "version": "0.2.0",
+    "manufacturer": "Audioplanet",
+    "description": "Exports every version of every track as raw, lined-up files, so all your takes can go to another DAW in one go.",
+    "categories": ["Import & Export"],
+    "sdk_version": "3.1.2",
+    "min_luna_version": "3.1.2",
+    "engines": ["luna"],
+    "html": "index.html",
+    "target": "window",
+    "floating": true,
+    "show_with_session": true,
+    "width": 560,
+    "height": 600
+}
