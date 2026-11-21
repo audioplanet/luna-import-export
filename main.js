@@ -1,4 +1,4 @@
-// Version Export: the window. Connects to LUNA, follows the focused session, shows every
+// Import/Export: the window. Connects to LUNA, follows the focused session, shows every
 // track's versions and what will be exported, and runs the export. Engine work is in logic.js.
 
 const $ = (id) => document.getElementById(id);
@@ -10,6 +10,15 @@ let session = null;
 let tracks = [];
 let plan = null;
 let off = []; // track ids the user unticked, kept per session
+let anchor = null; // the track ticked or unticked last, where a Shift-click range starts
+
+/** The ids from `a` to `b` in `ids`, both included, in either direction; just `b` when `a` is gone. */
+function idsBetween(ids, a, b) {
+  const i = ids.indexOf(a);
+  const j = ids.indexOf(b);
+  if (i < 0 || j < 0) return [b];
+  return ids.slice(Math.min(i, j), Math.max(i, j) + 1);
+}
 let folder = '';
 let running = null; // { signal } while exporting
 const fileStatus = new Map(); // `${trackId}|${number}` -> 'ok' | 'err' | 'now'
@@ -64,7 +73,13 @@ function render() {
     const box = tr.querySelector('input');
     box.checked = hasClips && !unticked;
     box.disabled = !hasClips || !!running;
-    box.onchange = () => setTicked([t.id], box.checked);
+    // Shift-click ticks or unticks every track from the last one clicked to this one.
+    box.onclick = (e) => {
+      const withClips = tracks.filter((x) => x.versions.some((v) => v.clips.length)).map((x) => x.id);
+      const ids = e.shiftKey && anchor ? idsBetween(withClips, anchor, t.id) : [t.id];
+      anchor = t.id;
+      setTicked(ids, box.checked);
+    };
     tr.querySelector('.tname').textContent = t.name;
     const cell = tr.querySelector('.vers');
     if (!hasClips) cell.textContent = 'no clips: skipped';
@@ -138,6 +153,7 @@ async function refresh() {
     tracks = t;
     plan = V.plan(tracks, await barOne(), mode(), off);
     render();
+    globalThis.Panels?.onTracks();
   } catch (e) {
     log(`Could not read the tracks: ${e.message}`, true);
   }
@@ -171,7 +187,7 @@ async function ensureFolder(path, what) {
 
 async function chooseFolder() {
   try {
-    if (!(await luna.gui.available())) return log('Choosing a folder needs LUNA’s window: open Version Export from LUNA’s Add Ons menu.', true);
+    if (!(await luna.gui.available())) return log('Choosing a folder needs LUNA’s window: open Import/Export from LUNA’s Add Ons menu.', true);
     const [picked] = await luna.gui.chooseFolders({ title: 'Export versions to…', defaultPath: folder || undefined });
     if (!picked || !session) return;
     folder = picked;
@@ -295,12 +311,14 @@ async function bindSessionNow() {
   session = next;
   tracks = [];
   off = [];
+  anchor = null;
   plan = null;
   fileStatus.clear();
   if (!session) {
     $('session').textContent = 'no session open';
     folder = '';
     render();
+    globalThis.Panels?.onSession();
     showBanner();
     return;
   }
@@ -320,7 +338,9 @@ async function bindSessionNow() {
   showBanner();
   releases.push(s.tracks.onChange(refreshSoon));
   releases.push(s.playlists.onChange(refreshSoon));
+  releases.push(s.buses.onChange(() => globalThis.Panels?.onTracks()));
   await refresh();
+  globalThis.Panels?.onSession();
 }
 
 async function connect() {

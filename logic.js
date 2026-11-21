@@ -1,4 +1,4 @@
-// Version Export: logic with no DOM, so tests can exercise it against Luna.MockEngine.
+// Import/Export: logic with no DOM, so tests can exercise it against Luna.MockEngine.
 //
 // LUNA keeps each take of a track as a playlist "version" (V1, V2, ... in the VERSIONS
 // column; the user may rename them). This exports every version of every track as a raw file
@@ -8,7 +8,7 @@
 
 const VersionLogic = {
   /** Shown in the window, so it is clear which version LUNA has loaded. Keep in step with manifest.json. */
-  VERSION: '0.2.0',
+  VERSION: '0.3.0',
   ADD_ON_ID: 'com.audioplanet.version_export',
 
   // ---- names ----
@@ -287,7 +287,7 @@ const VersionLogic = {
           try {
             const { render } = await session.bounce({
               channelUids: r.items.map((i) => i.trackId),
-              name: `Version Export V${r.number}`,
+              name: `Import/Export V${r.number}`,
               outputPaths: paths,
               recordPoint: 'pre_effects',
               range: { startTick: plan.start, stopTick: plan.end },

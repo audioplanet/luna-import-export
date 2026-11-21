@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Version Export</title>
+  <title>Import/Export</title>
   <style>
     :root { color-scheme: dark; --accent: #F7C449; --bg: #151515; --panel: #1e1e21; --line: #2c2c30; --dim: #8a8a90; --ok: #7fd18b; --err: #ff8a80; }
     * { box-sizing: border-box; }
@@ -40,9 +40,24 @@
     tr.off td:not(.pick) { color: var(--dim); opacity: .55; }
     th.pick, td.pick { width: 1%; white-space: nowrap; }
     td.pick { text-align: center; }
+    tbody { user-select: none; -webkit-user-select: none; }
     button.mini { padding: 0 6px; font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
     #empty { color: var(--dim); padding: 18px 2px; line-height: 1.5; }
     progress { width: 120px; height: 6px; accent-color: var(--accent); }
+    nav { display: flex; gap: 2px; padding: 0 14px; background: #202023; border-bottom: 1px solid var(--line); }
+    nav button { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 7px 12px; color: var(--dim); font-weight: 600; letter-spacing: .06em; font-size: 12px; }
+    nav button.on { color: #eee; border-bottom-color: var(--accent); }
+    .pane { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    input[type=number] { width: 56px; background: #111; border: 1px solid #44444a; border-radius: 4px; padding: 2px 4px; }
+    input[type=text] { background: #111; border: 1px solid #44444a; border-radius: 4px; padding: 3px 6px; width: 100%; }
+    select { background: #2a2a2e; border: 1px solid #44444a; border-radius: 4px; padding: 2px 4px; }
+    #drop.hot { outline: 2px dashed var(--accent); outline-offset: -6px; }
+    .hint { color: var(--dim); padding: 18px 2px; line-height: 1.6; }
+    .new { color: var(--accent); font-size: 11px; }
+    #rules { border-bottom: 1px solid var(--line); padding: 8px 14px; max-height: 45vh; overflow: auto; }
+    #rules td { border: 0; padding: 2px 4px 2px 0; }
+    #rules td.f { width: 30%; }
     footer { border-top: 1px solid var(--line); padding: 8px 14px; }
     #log { font: 11px Menlo, monospace; color: #aaa; max-height: 100px; overflow: auto; white-space: pre-wrap; }
     #log .err { color: var(--err); }
@@ -50,10 +65,12 @@
 </head>
 <body>
   <header>
-    <h1>Version Export <span id="ver" class="dim"></span></h1>
+    <h1>Import/Export <span id="ver" class="dim"></span></h1>
     <span id="session" class="dim">connecting…</span>
   </header>
   <div id="banner" hidden><span>An export was interrupted before your tracks were put back on their versions.</span><button id="restoreBtn" class="primary">Restore versions</button><button id="forgetBtn">Ignore</button></div>
+  <nav><button data-tab="export" class="on">EXPORT</button><button data-tab="import">IMPORT</button><button data-tab="sort">SORT</button></nav>
+  <section class="pane" id="tab-export">
   <div class="settings">
     <label>Folder</label>
     <span id="folder">–</span>
@@ -80,9 +97,79 @@
     </table>
     <div id="empty" hidden></div>
   </main>
+  </section>
+
+  <section class="pane" id="tab-import" hidden>
+    <div class="settings">
+      <label>Make</label>
+      <div class="modes">
+        <label><input type="radio" name="imode" value="takes"> Tracks with versions from takes <span class="dim">Bass - V2 - tight.wav, V2/Bass.wav</span></label>
+        <label><input type="radio" name="imode" value="album"> An album: one file after another, a marker for each <span class="dim">01 - Song.wav</span></label>
+      </div>
+      <label>Files</label>
+      <span id="isource" class="dim">none yet: choose or drop files or a folder here</span>
+      <span class="btns"><button id="ifolder">Folder…</button><button id="ifiles">Files…</button></span>
+      <label>Start</label>
+      <div class="row" style="grid-column: 2 / 4">
+        <select id="istart"><option value="bar1">at bar 1</option><option value="playhead">at the playhead</option></select>
+        <span id="ialbum" class="row"><span class="dim">gap</span><input type="number" id="igap" min="0" max="60" step="0.5"><span class="dim">seconds</span>
+        <label class="row"><input type="checkbox" id="imarkers"> markers from file names</label></span>
+      </div>
+    </div>
+    <div class="bar">
+      <span class="grow dim" id="isummary"></span>
+      <progress id="iprog" max="1" value="0" hidden></progress>
+      <button id="istop" disabled>Stop</button>
+      <button id="igo" class="primary" disabled>Import</button>
+    </div>
+    <main id="drop">
+      <table id="itable" hidden>
+        <thead id="ihead"></thead>
+        <tbody id="irows"></tbody>
+      </table>
+      <div id="ihint" class="hint">Takes: every file named like <b>Bass - V2.wav</b> or <b>V2/Bass.wav</b> becomes a version on a track called Bass, all starting at the same point. Files without a version are one-version tracks.<br>Album: each file goes on its own track, one after another, with a marker named after the file. A leading “01 - ” is left out of the name.<br>Files are copied into the session. Every import can be undone in LUNA.</div>
+    </main>
+  </section>
+
+  <section class="pane" id="tab-sort" hidden>
+    <div class="settings">
+      <label>Tracks</label>
+      <div class="modes" style="grid-column: 2 / 3">
+        <label><input type="checkbox" id="sloose"> Only tracks not in a folder yet</label>
+        <label><input type="checkbox" id="smake"> Make folders a rule names when the session has none <span class="dim">(otherwise those tracks stay)</span></label>
+      </div>
+      <span class="btns"><button id="srulesBtn">Rules…</button></span>
+    </div>
+    <div class="settings" style="border-top:0">
+      <label>Group</label>
+      <div class="row" style="grid-column: 2 / 4">
+        <select id="sgroupFolder"></select>
+        <button id="sselect">Select its tracks</button>
+        <span class="dim">then make the group with LUNA’s own group command</span>
+      </div>
+    </div>
+    <div id="rules" hidden>
+      <table><thead><tr><th>Folder</th><th>Words in track names <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:400">— a word starts a word in the name; deeper folders win, then the word that comes first</span></th><th></th></tr></thead><tbody id="srules"></tbody></table>
+      <div class="row" style="margin-top:6px"><button id="sadd">Add rule</button><button id="sreset">Back to the defaults</button><span class="dim">Folder paths use /, like Drums/Kick. Saved for every session.</span></div>
+    </div>
+    <div class="bar">
+      <button id="srefresh">Refresh</button>
+      <span class="grow dim" id="ssummary"></span>
+      <button id="sgo" class="primary" disabled>Sort</button>
+    </div>
+    <main>
+      <table id="stable" hidden>
+        <thead><tr><th class="pick"></th><th>Track</th><th>Now in</th><th>Goes to</th></tr></thead>
+        <tbody id="srows"></tbody>
+      </table>
+      <div id="shint" class="hint" hidden></div>
+    </main>
+  </section>
   <footer><div id="log"></div></footer>
   <script src="vendor/luna.global.js"></script>
   <script src="logic.js"></script>
+  <script src="importer.js"></script>
   <script src="main.js"></script>
+  <script src="panels.js"></script>
 </body>
 </html>
